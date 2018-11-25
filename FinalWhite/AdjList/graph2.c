@@ -73,17 +73,22 @@ void addEdge(struct Graph *graph,int src, int dest){
   //newNode->next = graph->adjLists[dest];
   //graph->adjLists[dest] = newNode;
 }
-void printGraph2(struct Graph *g){
-  int v, i;
-  int sizeMe = sizeof(struct node *);
-  struct node *temp =(struct node *) (g->adjLists);
-  for(i = 0; i<numNodes; i++){
-    printf("node %d visited %d\n",temp->vertex, temp->visited);
-   temp++; 
+void printGraph2(struct Graph *graph){
+  int v,i;
+  for(v=graph->numV-6; v < graph->numV; v++){
+    struct node *temp = graph->adjLists[v];
+    printf("List of V: %d ",temp->vertex);
+    //printf("outdeg is: %d\n",outDeg(temp));
+    i = 0;
+    printf("%d visited %d times\n", temp->vertex, temp->visited);
+    while(temp){
+     // printf("i:%d\t",i);
+      printf("%d -> ",temp->vertex);
+      temp = temp->next;
+      i++;
+    }
+    putchar(10);
   }
-
-
-
 }
 void printGraph(struct Graph *graph){
   int v,i;
@@ -122,7 +127,10 @@ int randomWalk(struct Graph *g,int j, int k, double d){
   struct node *temp = g->adjLists[j];
   temp->visited++;
  // #pragma omp parallel for private(i,seed,rNum,out)
- srand(time(NULL));
+  #pragma omp parallel
+{
+  srand(time(NULL));
+#pragma for private(i)
   for(i = 1; i<k; i++){
  // printf("CURRENT NODE: %d\n",temp->vertex);
  // printf("%d has been visited %d times\n",temp->vertex, temp->visited);
@@ -158,6 +166,7 @@ int randomWalk(struct Graph *g,int j, int k, double d){
     }
    // printf("new rand is ajd[%d] -> num %d\n",temp->vertex, rNum);
   }
+}
   // printf("go to node %d !\n",rNum);
   //  g->adjLists[rNum]->visited++;
 }
@@ -173,6 +182,7 @@ int partition(struct Graph *g, int low, int high){
  // printf("PIV:%d\n",piv);
   int i = (low - 1);
   int j;
+#pragma omp parallel for private(j)
   for(j = low; j<=high -1; j++){
    // printf("list j = %d, visited=%d\n",g->adjLists[j]->vertex,g->adjLists[j]->visited);
     if(g->adjLists[j]->visited<=piv){
@@ -217,12 +227,13 @@ int main(int argc, char *argv[]){
   fileName = argv[2];
   struct Graph *graph = createGraph(numNodes);
   readFile(graph, fileName);
-  printGraph(graph);
+  //printGraph(graph);
   int i;
+#pragma omp parallel for private(i)
   for(i = 0; i < numNodes; i++){
     randomWalk(graph,i, numNodes,0.69);
   }
   quicksort(graph, 0, numNodes-1);
-  printGraph(graph);
+  printGraph2(graph);
   return 0;
 }
