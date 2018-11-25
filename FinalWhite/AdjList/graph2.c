@@ -75,7 +75,7 @@ void addEdge(struct Graph *graph,int src, int dest){
 }
 void printGraph2(struct Graph *graph){
   int v,i;
-  for(v=graph->numV-6; v < graph->numV; v++){
+  for(v=0; v < graph->numV; v++){
     struct node *temp = graph->adjLists[v];
     printf("List of V: %d ",temp->vertex);
     //printf("outdeg is: %d\n",outDeg(temp));
@@ -218,22 +218,25 @@ int main(int argc, char *argv[]){
   char *fileName, preProc[128];
   FILE *fp;
   char *temp;
-  int num;
-  if(argc < 3){
-    printf("Usage: numNodes fileName\n");
+  int num,k;
+  double damp;
+  if(argc < 5){
+    printf("Usage: numNodes walkLength dampRatio fileName\n");
     exit(1);
   }
   numNodes = atoi(argv[1]);
-  fileName = argv[2];
+  fileName = argv[4];
+  k = atoi(argv[2]);
+  damp = atof(argv[3]);
   struct Graph *graph = createGraph(numNodes);
   readFile(graph, fileName);
-  //printGraph(graph);
+  printGraph(graph);
   int i;
 #pragma omp parallel for private(i)
   for(i = 0; i < numNodes; i++){
-    randomWalk(graph,i, numNodes,0.69);
+   randomWalk(graph,i, k,damp);
   }
   quicksort(graph, 0, numNodes-1);
-  printGraph2(graph);
+  //printGraph2(graph);
   return 0;
 }
