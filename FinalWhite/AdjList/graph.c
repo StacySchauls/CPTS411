@@ -169,43 +169,47 @@ int randomWalk(struct Graph *g,int j, int k, double d){
   struct node *temp = g->adjLists[j];
   temp->visited++;
   // #pragma omp parallel for private(i,seed,rNum,out)
-#pragma omp parallel
+//#pragma omp parallel
   {
-    srand(time(NULL));
-#pragma for private(i)
+//#pragma omp set_num_threads(6) 
+    //srand(time(NULL));
+//#pragma omp parallel for private(i,out,rNum)
     for(i = 1; i<k; i++){
+struct node *temp2;
+//printf("%d\n",i);
       // printf("CURRENT NODE: %d\n",temp->vertex);
       // printf("%d has been visited %d times\n",temp->vertex, temp->visited);
       out = outDeg(temp);
       // printf("out is:%d\n",out);
       //create random node
-      seed =  omp_get_thread_num() + 1;
+     seed = time(NULL);
+     //seed =  omp_get_thread_num() + 1;
       seed *= i;
-      rNum = rand()% 100 + 1;
+      rNum = rand_r(&seed)% 100 + 1;
       if(out == 0){
         rNum = d;
       }
       if(rNum<=(d*100)){
         //  printf("its heads! pick a random node.\n");
-        rNum = (rand()%(numNodes-1)+1);//rand_r(&seed)% numNodes;
-        temp = g->adjLists[rNum];
-#pragma omp atomic
-        temp->visited++;
+        rNum = (rand_r(&seed)%(numNodes-1)+1);//rand_r(&seed)% numNodes;
+        temp2 = g->adjLists[rNum];
+//#pragma omp atomic
+        temp2->visited++;
         //  printf("rNum is %d\n",rNum);
         // printf("new temp is: %d\n",temp->vertex);
       }else{
         // printf("its tails! Choose from local.\n");
-        rNum = rand() % (out) +1; // rand_r(&seed)% (out) +1;
+        rNum = rand_r(&seed) % (out) +1; // rand_r(&seed)% (out) +1;
         // printf("rnum is: %d\n",rNum);
         int q = 0;
         while(q < rNum && temp){
-          temp = temp->next;
+          temp2 = temp->next;
           // printf("temp->vertex: %d\n", temp->vertex);
           q++;
         }
         // printf("temp is: %d\n", temp->vertex);
-#pragma omp atomic
-        temp->visited++;
+//#pragma omp atomic
+        temp2->visited++;
       }
       // printf("new rand is ajd[%d] -> num %d\n",temp->vertex, rNum);
     }
@@ -284,18 +288,23 @@ int main(int argc, char *argv[]){
   // printGraph(graph);
   int i;
 double start = omp_get_wtime();
-#pragma omp parallel for private(i)
+printf("starting walks\n");
+//#pragma omp parallel for private(i)
   for(i = 0; i < numNodes; i++){
+    //printf("%d\n",i);
     randomWalk(graph,i, k,damp);
   }
+/*
   //printf("Starting quicksort\n");
 #pragma omp parallel 
   {
 #pragma omp single nowait
     {
-       //quicksort(graph, 0, numNodes-1);
+       quicksort(graph, 0, numNodes-1);
     }
   }
+*/
+printf("checking top5\n");
   checkTop(graph);
 double total = omp_get_wtime() - start;
 printf("Total Time: %f\n",total);
