@@ -5,6 +5,9 @@
 #include <time.h>
 int numNodes;
 int top5[5];
+int visits = 0;
+int wentLocal = 0;
+int wentRandom = 0;
 struct node{
   int visited;
   int vertex;
@@ -16,6 +19,7 @@ struct node* createNode(int);
 struct Graph{
   int numV;
   struct node **adjLists;
+  int totalVisits;
 };
 
 struct Graph *createGraph(int vertices);
@@ -36,17 +40,15 @@ struct Graph *createGraph(int vertices){
   struct Graph *graph = malloc(sizeof(struct Graph));
   graph->numV = vertices;
   graph->adjLists = malloc(vertices * sizeof(struct node));
-
+  graph->totalVisits = 0;
   int i;
-#pragma omp parallel
-  {
-#pragma omp  for private(i)
-    for(i = 0; i < vertices; i++){
-      graph->adjLists[i] = NULL;
-      struct node *newNode = createNode(i);
-      newNode->next = graph->adjLists[i];
-      graph->adjLists[i] = newNode;
-    }
+
+#pragma omp parallel for private(i)
+  for(i = 0; i < vertices; i++){
+    graph->adjLists[i] = NULL;
+    struct node *newNode = createNode(i);
+    newNode->next = graph->adjLists[i];
+    graph->adjLists[i] = newNode;
   }
   return graph;
 
@@ -75,11 +77,12 @@ void addEdge(struct Graph *graph,int src, int dest){
 }
 void print5(struct Graph *g){
   int i;
+  printf("Total Visits: %d\tlocal:%d\trandom:%d\n",visits,wentLocal,wentRandom);
   printf("Top 5 nodes\n");
-  printf("Node\tvisited\n");
+  printf("Node\tvisited % \n");
   for(i=0; i<5; i++){
     struct node *temp = g->adjLists[top5[i]];
-    printf("%d\t%d\n",temp->vertex, temp->visited);
+    printf("%d\t%f\n",temp->vertex,((double)temp->visited /(double) visits));
   }
 
 
@@ -101,20 +104,8 @@ void printGraph(struct Graph *graph){
     putchar(10);
   }
 }
-void trickleDown(int j,int v){
-
-  int i;
-  /*
-     for(i = j; i > 0; i--){
-     top5[i] = top5[i-1];
-     }
-     top5[j] = v;
-   */
-}
-
-
+//function to check the top 5 values in the graph
 int checkTop(struct Graph *g){
-
   int v;
   for(v = 0;v<g->numV; v++){ 
     if(g->adjLists[v]->visited > g->adjLists[top5[0]]->visited){
@@ -145,10 +136,8 @@ int checkTop(struct Graph *g){
       top5[4] = v;
     }
   }
-
-  print5(g);
-
 }
+
 int readFile(struct Graph *g, char *fileName){
   FILE *fp = fopen(fileName, "r+");
   if(!fp){
@@ -167,49 +156,60 @@ int readFile(struct Graph *g, char *fileName){
 int randomWalk(struct Graph *g,int j, int k, double d){
   int i,seed,rNum,out;
   struct node *temp = g->adjLists[j];
-  temp->visited++;
+ // temp->visited++;
+  //int visits = g->totalVisits++;
   // #pragma omp parallel for private(i,seed,rNum,out)
-//#pragma omp parallel
+  //#pragma omp parallel
   {
-//#pragma omp set_num_threads(6) 
+    //#pragma omp set_num_threads(6) 
     //srand(time(NULL));
-//#pragma omp parallel for private(i,out,rNum)
-    for(i = 1; i<k; i++){
-struct node *temp2;
-//printf("%d\n",i);
+#pragma omp parallel for private(i,out,rNum,seed) reduction(+:visits)
+    for(i = 0; i<k; i++){
+      struct node *temp2 = g->adjLists[j];
+      //printf("%d\n",i);
       // printf("CURRENT NODE: %d\n",temp->vertex);
       // printf("%d has been visited %d times\n",temp->vertex, temp->visited);
-      out = outDeg(temp);
+      out = outDeg(temp2);
       // printf("out is:%d\n",out);
       //create random node
-     seed = time(NULL);
-     //seed =  omp_get_thread_num() + 1;
+      seed = time(NULL);
+      //seed =  omp_get_thread_num() + 1;
       seed *= i;
       rNum = rand_r(&seed)% 100 + 1;
       if(out == 0){
         rNum = d;
       }
       if(rNum<=(d*100)){
+        #pragma omp atomic
+        wentRandom++;
         //  printf("its heads! pick a random node.\n");
         rNum = (rand_r(&seed)%(numNodes-1)+1);//rand_r(&seed)% numNodes;
         temp2 = g->adjLists[rNum];
-//#pragma omp atomic
+        //printf("random rNum is %d\n",rNum);
+       // printf("temp is: %d\n", temp2->vertex);
+        visits++;
+        //#pragma omp atomic
         temp2->visited++;
-        //  printf("rNum is %d\n",rNum);
+       // printf("new visited:%d\n",temp2->visited);
         // printf("new temp is: %d\n",temp->vertex);
       }else{
+        #pragma omp atimoic
+        wentLocal++;
         // printf("its tails! Choose from local.\n");
+        //printf("temp->vertex: %d\n", temp2->vertex);
         rNum = rand_r(&seed) % (out) +1; // rand_r(&seed)% (out) +1;
-        // printf("rnum is: %d\n",rNum);
+       // printf("local rnum is: %d\n",rNum);
         int q = 0;
-        while(q < rNum && temp){
-          temp2 = temp->next;
-          // printf("temp->vertex: %d\n", temp->vertex);
+        while(q < rNum && temp2){
+          temp2 = temp2->next;
           q++;
         }
-        // printf("temp is: %d\n", temp->vertex);
-//#pragma omp atomic
+         //printf("temp is: %d\n", temp2->vertex);
+        //#pragma omp atomic
+        visits++;
+        //#pragma omp atomic
         temp2->visited++;
+       // printf("new visited:%d\n",temp2->visited);
       }
       // printf("new rand is ajd[%d] -> num %d\n",temp->vertex, rNum);
     }
@@ -222,41 +222,41 @@ struct node *temp2;
 
 
 
-void swap(struct Graph *g, int a, int b){
-  // printf("SWAPPING %d and %d\n",a,b);
-  struct node *temp = g->adjLists[a];
-  g->adjLists[a] = g->adjLists[b];
-  g->adjLists[b] = temp;
+/***********************************************************************
+  void swap(struct Graph *g, int a, int b){
+// printf("SWAPPING %d and %d\n",a,b);
+struct node *temp = g->adjLists[a];
+g->adjLists[a] = g->adjLists[b];
+g->adjLists[b] = temp;
 }
 int partition(struct Graph *g, int low, int high){
-  int piv = g->adjLists[high]->visited;
-  // int piv = (g->adjLists[low]->visited + g->adjLists[numNodes/2]->visited + g->adjLists[high]->visited)/3;
+int piv = g->adjLists[high]->visited;
+// int piv = (g->adjLists[low]->visited + g->adjLists[numNodes/2]->visited + g->adjLists[high]->visited)/3;
 
-  // printf("PIV:%d\n",piv);
-  int i = (low - 1);
-  int j;
-  //#pragma omp parallel for private(j)
-  for(j = low; j<=high -1; j++){
-    // printf("list j = %d, visited=%d\n",g->adjLists[j]->vertex,g->adjLists[j]->visited);
-    if(g->adjLists[j]->visited<=piv){
-      i++;
-      swap(g,i,j);}
-  }
-  swap(g,i+1,high);
-  return i+1;
+// printf("PIV:%d\n",piv);
+int i = (low - 1);
+int j;
+//#pragma omp parallel for private(j)
+for(j = low; j<=high -1; j++){
+// printf("list j = %d, visited=%d\n",g->adjLists[j]->vertex,g->adjLists[j]->visited);
+if(g->adjLists[j]->visited<=piv){
+i++;
+swap(g,i,j);}
 }
-
+swap(g,i+1,high);
+return i+1;
+}
 int quicksort(struct Graph *g, int low, int high){
-  //quicksort, graph, starting and ending index
-  if(low < high){
-    int pi = partition(g,low, high);
+//quicksort, graph, starting and ending index
+if(low < high){
+int pi = partition(g,low, high);
 #pragma omp task
-    quicksort(g, low, pi-1);
+quicksort(g, low, pi-1);
 #pragma omp task
-    quicksort(g, pi+1, high);
-  }
+quicksort(g, pi+1, high);
 }
-
+}
+ ***************************************************************************/
 
 int outDeg(struct node *Node){
   int i= 0;
@@ -287,28 +287,28 @@ int main(int argc, char *argv[]){
   readFile(graph, fileName);
   // printGraph(graph);
   int i;
-double start = omp_get_wtime();
-printf("starting walks\n");
-//#pragma omp parallel for private(i)
+  double start = omp_get_wtime();
+  printf("starting walks\n");
+  //#pragma omp parallel for private(i)
   for(i = 0; i < numNodes; i++){
     //printf("%d\n",i);
     randomWalk(graph,i, k,damp);
   }
-/*
+  /*
   //printf("Starting quicksort\n");
 #pragma omp parallel 
-  {
+{
 #pragma omp single nowait
-    {
-       quicksort(graph, 0, numNodes-1);
-    }
-  }
+{
+quicksort(graph, 0, numNodes-1);
+}
+}
 */
-printf("checking top5\n");
-  checkTop(graph);
+//printf("checking top5\n");
+checkTop(graph);
 double total = omp_get_wtime() - start;
 printf("Total Time: %f\n",total);
-  //print5(graph);
-  //printGraph(graph);
-  return 0;
+print5(graph);
+//printGraph(graph);
+return 0;
 }
