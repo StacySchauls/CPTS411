@@ -43,7 +43,7 @@ struct Graph *createGraph(int vertices){
   graph->totalVisits = 0;
   int i;
 
-#pragma omp parallel for private(i)
+#pragma omp parallel for private(i)        //COMMENT THIS FOR SERIAL
   for(i = 0; i < vertices; i++){
     graph->adjLists[i] = NULL;
     struct node *newNode = createNode(i);
@@ -82,7 +82,7 @@ void print5(struct Graph *g){
   printf("Node\tvisited % \n");
   for(i=0; i<5; i++){
     struct node *temp = g->adjLists[top5[i]];
-    printf("%d\t%f\n",temp->vertex,((double)temp->visited /(double) visits));
+    printf("%d\t%.20lf\n",temp->vertex,((double)temp->visited /(double) visits));
   }
 
 
@@ -163,7 +163,7 @@ int randomWalk(struct Graph *g,int j, int k, double d){
   {
     //#pragma omp set_num_threads(6) 
     //srand(time(NULL));
-#pragma omp parallel for private(i,out,rNum,seed) reduction(+:visits)
+#pragma omp parallel for private(i,out,rNum,seed) reduction(+:visits)       //COMMENT THIS FOR SERIAL
     for(i = 0; i<k; i++){
       struct node *temp2 = g->adjLists[j];
       //printf("%d\n",i);
@@ -289,7 +289,7 @@ int main(int argc, char *argv[]){
   int i;
   double start = omp_get_wtime();
   printf("starting walks\n");
-  //#pragma omp parallel for private(i)
+  #pragma omp parallel for private(i)    // COMMENT THIS FOR SERIAL
   for(i = 0; i < numNodes; i++){
     //printf("%d\n",i);
     randomWalk(graph,i, k,damp);
